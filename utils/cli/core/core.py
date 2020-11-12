@@ -94,6 +94,7 @@ class CLI():
                 log.info(logger_string)
 
             self.tasks_upload(task_id, annotation_format, annotation_path, **kwargs)
+        return task_id
 
     def tasks_delete(self, task_ids, **kwargs):
         """ Delete a list of tasks, ignoring those which don't exist. """
@@ -127,6 +128,30 @@ class CLI():
 
             outfile = 'task_{}_frame_{:06d}{}'.format(task_id, frame_id, im_ext)
             im.save(os.path.join(outdir, outfile))
+
+    def tasks_download_dataset(self, task_id, fileformat, filename, **kwargs):
+        """ Download a dataset for a task in specified format"""
+        url = self.api.tasks_id(task_id)
+        response = self.session.get(url)
+        response.raise_for_status()
+        response_json = response.json()
+
+        url = self.api.tasks_id_dataset(task_id,
+                                        response_json['name'],
+                                        fileformat)
+        while True:
+            response = self.session.get(url)
+            response.raise_for_status()
+            log.info('STATUS {}'.format(response.status_code))
+            if response.status_code == 201:
+                break
+
+        response = self.session.get(url + '&action=download')
+        response.raise_for_status()
+
+        with open(filename, 'wb') as fp:
+            fp.write(response.content)
+
 
     def tasks_dump(self, task_id, fileformat, filename, **kwargs):
         """ Download annotations for a task in the specified format
@@ -215,6 +240,10 @@ class CVAT_API_V1():
 
     def tasks_id_annotations_filename(self, task_id, name, fileformat):
         return self.tasks_id(task_id) + '/annotations?format={}&filename={}' \
+            .format(fileformat, name)
+
+    def tasks_id_dataset(self, task_id, name, fileformat):
+        return self.tasks_id(task_id) + '/dataset?format={}&filename={}' \
             .format(fileformat, name)
 
     @property
